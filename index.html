@@ -49,7 +49,7 @@
   .btn-restart:hover{transform:translateY(-1px);box-shadow:0 8px 25px rgba(56,189,248,0.3)}
   .flip-hint{position:absolute;bottom:16px;right:16px;font-size:12px;color:#64748b;opacity:0;transition:opacity 0.3s}
   .flashcard:not(.flipped):hover .flip-hint{opacity:1}
-  .star-btn{position:absolute;top:12px;right:12px;background:transparent;border:1px solid #2a3347;border-radius:999px;padding:8px 10px;cursor:pointer}
+  .star-btn{position:absolute;top:12px;right:12px;z-index:20;background:rgba(17,24,39,0.9);border:1px solid #2a3347;border-radius:999px;padding:6px 8px;cursor:pointer;pointer-events:auto;}
   .star-btn:hover{border-color:#3a4660;transform:translateY(-1px)}
   .star{font-size:18px;color:#e5e7eb}
   .star.active{color:var(--yellow)}
@@ -143,6 +143,14 @@
       databaseURL: "https://technical-questions-75f17-default-rtdb.europe-west1.firebasedatabase.app"
     };
 
+    
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+    
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
@@ -223,8 +231,10 @@
       if (state.mode === 'hard') {
         const starredIds = new Set(Object.keys(starred));
         state.deck = QA.filter(q => starredIds.has(q.id));
+        shuffleArray(state.deck);
       } else {
         state.deck = [...QA];
+        shuffleArray(state.deck);
       }
       if (state.mode === 'hard' && state.deck.length === 0) {
         els.quiz.style.display = 'block';
@@ -352,7 +362,7 @@
     els.dont.addEventListener('click', markUnknown);
     els.restart.addEventListener('click', restart);
     if (els.restart2) els.restart2.addEventListener('click', restart);
-    els.starBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStar(); });
+    els.starBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); toggleStar(); });
     els.toggleMode.addEventListener('click', toggleMode);
 
     // ==== Init ====
