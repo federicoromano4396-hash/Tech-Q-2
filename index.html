@@ -168,11 +168,11 @@
 
     // Local cache of remote data
     let starred = {};
-    let known = {}; // NUOVO: Cache per le domande conosciute
+    let known = {}; 
 
     // Firebase refs
     const starRef = (qid=null) => qid ? ref(db, `users/${UID}/starred/${qid}`) : ref(db, `users/${UID}/starred`);
-    const knownRef = (qid=null) => qid ? ref(db, `users/${UID}/known/${qid}`) : ref(db, `users/${UID}/known`); // NUOVO: Ref per le domande conosciute
+    const knownRef = (qid=null) => qid ? ref(db, `users/${UID}/known/${qid}`) : ref(db, `users/${UID}/known`);
 
     let isInitialLoad = true;
 
@@ -183,7 +183,7 @@
       if (state.mode === 'hard') buildDeck();
     }, (err) => { console.warn('Firebase onValue error (starred)', err); });
 
-    // NUOVO: Subscribe to known questions
+    // Subscribe to known questions
     onValue(knownRef(), (snapshot) => {
       known = snapshot.val() || {};
       if (isInitialLoad) {
@@ -237,7 +237,6 @@
         const starredIds = new Set(Object.keys(starred));
         state.deck = QA.filter(q => starredIds.has(q.id));
       } else {
-        // MODIFICATO: Filtra le domande già conosciute
         const knownIds = new Set(Object.keys(known));
         state.deck = QA.filter(q => !knownIds.has(q.id));
       }
@@ -254,7 +253,7 @@
       state.totalStart = state.deck.length;
       updateHeader();
       
-      if (state.deck.length === 0 && Object.keys(known).length > 0) {
+      if (state.deck.length === 0 && Object.keys(known).length > 0 && state.mode !== 'hard') {
           showCompletion();
       } else {
           showCard();
@@ -275,11 +274,15 @@
       if (state.deck.length === 0) {
         els.current.textContent = 0;
         els.remaining.textContent = 0;
-        els.progressBar.style.width = '0%';
+        els.progressBar.style.width = '100%';
         els.q.innerHTML = '';
         els.a.innerHTML = '';
         setStarUI(false);
         if (state.mode !== 'hard') {
+            showCompletion();
+        } else if (state.mode === 'hard' && Object.keys(starred).length === 0) {
+            // Non fare nulla per non sovrascrivere l'empty state
+        } else {
             showCompletion();
         }
         return;
@@ -292,7 +295,7 @@
       els.current.textContent = state.index + 1;
       els.remaining.textContent = state.deck.length;
       
-      const totalInitialQuestions = (state.mode === 'hard') ? Object.keys(starred).length : QA.length;
+      const totalInitialQuestions = (state.mode === 'hard') ? (state.totalStart > 0 ? state.totalStart : 1) : QA.length;
       const answeredQuestions = totalInitialQuestions - state.deck.length;
 
       const progress = totalInitialQuestions > 0 ? (answeredQuestions / totalInitialQuestions) * 100 : 0;
@@ -311,10 +314,10 @@
       
       const qid = state.deck[state.index].id;
       
-      // NUOVO: Salva la domanda come "conosciuta" su Firebase
-      set(knownRef(qid), true).catch(e => console.warn("Salvataggio su Firebase fallito", e));
+      if (state.mode !== 'hard') {
+        set(knownRef(qid), true).catch(e => console.warn("Salvataggio su Firebase fallito", e));
+      }
       
-      // Rimuove la carta dal mazzo locale
       state.deck.splice(state.index, 1);
       
       if (state.index >= state.deck.length) {
@@ -340,13 +343,23 @@
     }
 
     async function restart() {
-      if (confirm("Vuoi davvero ricominciare? Questo cancellerà la cronologia di tutte le domande a cui hai risposto 'Lo so'.")) {
-        await remove(knownRef()).catch(e => console.warn("Cancellazione da Firebase fallita", e));
-        known = {}; // Svuota la cache locale
+      // MODIFICATO: Comportamento diverso in base alla modalità
+      if (state.mode === 'hard') {
+        // In modalità "Domande difficili", ricomincia solo la sessione corrente senza cancellare dati
         state.index = 0;
         buildDeck();
         els.quiz.style.display = 'block';
         els.completion.style.display = 'none';
+      } else {
+        // In modalità "Tutte", chiedi conferma e cancella i progressi da Firebase
+        if (confirm("Vuoi davvero ricominciare? Questo cancellerà la cronologia di tutte le domande a cui hai risposto 'Lo so'.")) {
+          await remove(knownRef()).catch(e => console.warn("Cancellazione da Firebase fallita", e));
+          known = {}; // Svuota la cache locale
+          state.index = 0;
+          buildDeck(); // buildDeck ora costruirà un mazzo completo
+          els.quiz.style.display = 'block';
+          els.completion.style.display = 'none';
+        }
       }
     }
 
@@ -403,9 +416,6 @@
     els.starBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); toggleStar(); });
     els.toggleMode.addEventListener('click', toggleMode);
 
-    // ==== Init ====
-    // L'inizializzazione ora avviene tramite la callback di onValue
-  
-</script>
+  </script>
 </body>
 </html>
